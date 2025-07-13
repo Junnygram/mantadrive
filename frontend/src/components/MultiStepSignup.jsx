@@ -43,16 +43,54 @@ export default function MultiStepSignup() {
 
     setLoading(true);
     try {
+      console.log('Signup endpoint:', process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT);
+      console.log('Sending signup data:', formData);
+      
       const response = await fetch(process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
+      console.log('Signup response status:', response.status);
       const data = await response.json();
+      console.log('Signup response data:', data);
 
-      if (response.ok) {
+      if (response.ok || response.status === 201) {
         toast.success('Account created successfully!');
+        // Store token if provided in response
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          
+          // Call backend to create S3 folders
+          try {
+            console.log('Creating S3 folders for user...');
+            console.log('Backend URL:', process.env.NEXT_PUBLIC_BACKEND_URL);
+            console.log('Token:', data.token.substring(0, 20) + '...');
+            
+            const folderResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/create-user-folders`, {
+              method: 'POST',
+              headers: { 
+                'Authorization': `Bearer ${data.token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            console.log('Folder creation status:', folderResponse.status);
+            
+            if (folderResponse.ok) {
+              const folderData = await folderResponse.json();
+              console.log('S3 folder creation response:', folderData);
+            } else {
+              const errorText = await folderResponse.text();
+              console.error('Failed to create S3 folders:', folderResponse.status, errorText);
+            }
+          } catch (folderError) {
+            console.error('Error creating S3 folders:', folderError);
+            // Don't block signup process if folder creation fails
+          }
+        }
+        
         router.push('/login');
         setFormData({
           firstName: '',
@@ -61,7 +99,9 @@ export default function MultiStepSignup() {
           password: '',
         });
       } else {
-        toast.error(data?.message || data?.errors?.[0]?.message || 'Signup failed');
+        toast.error(
+          data?.message || data?.errors?.[0]?.message || 'Signup failed'
+        );
       }
     } catch (err) {
       toast.error('Network error');
