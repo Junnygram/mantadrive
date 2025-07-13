@@ -1,44 +1,13 @@
-import uvicorn
-import io
-import os
-import base64
-import logging
-import boto3
-from pydantic import BaseModel
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, UploadFile, Form, HTTPException
-from botocore.exceptions import NoCredentialsError, ClientError
-from fastapi.responses import JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
-from PIL import Image
-import qrcode  # Make sure to install the qrcode library
+from pydantic import BaseModel
+import base64
+import requests
+import qrcode
+import io
+from typing import Optional
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# AWS S3 Configuration
-s3 = boto3.client('s3')
-bucket_name = "qr-codess-generator"
-
-def create_bucket(bucket_name):
-    try:
-        s3.head_bucket(Bucket=bucket_name)
-        print(f"Bucket {bucket_name} already exists. Using the existing bucket.")
-    except ClientError as e:
-        if e.response['Error']['Code'] == '404':
-            try:
-                s3.create_bucket(
-                    Bucket=bucket_name,
-                    CreateBucketConfiguration={'LocationConstraint': 'us-west-2'}
-                )
-                print(f"Bucket {bucket_name} created successfully.")
-            except ClientError as create_error:
-                print(f"Error creating bucket: {create_error}")
-        else:
-            print(f"Error accessing bucket: {e}")
-
-app = FastAPI()
+app = FastAPI(title="MantaDrive Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,105 +17,161 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus metrics initialization
-instrumentator = Instrumentator().instrument(app).expose(app)
+MANTA_BASE_URL = "https://api.mantahq.com/api/workflow/olaleye/mantadrive"
 
-# Call this function when initializing your application
-create_bucket(bucket_name)
+class ShareLinkRequest(BaseModel):
+    file_id: str
+    manta_token: str
 
-# Use the instrumentator to track metrics
-@app.on_event("startup")
-async def startup():
-    logger.info("Application has started")
+class QRCodeRequest(BaseModel):
+    file_id: str
+    manta_token: str
 
-
-# Pydantic model for text, email, and URL input
-class QRCodeData(BaseModel):
-    data_type: str
-    data: str
-
-# Endpoint for generating QR code from text, email, or URL
-@app.post("/generate-qr/")
-async def generate_qr(data: QRCodeData):
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Upload file to Manta API as base64 string"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    manta_token = authorization.replace("Bearer ", "")
+    
     try:
+        # Read file and convert to base64
+        file_content = await file.read()
+        file_base64 = base64.b64encode(file_content).decode()
+        
+        # Post to Manta API
+        response = requests.post(
+            f"{MANTA_BASE_URL}/filemanagement/upload",
+            json={
+                "filename": file.filename,
+                "content": file_base64,
+                "content_type": file.content_type,
+                "size": len(file_content)
+            },
+            headers={"Authorization": f"Bearer {manta_token}"}
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/files")
+async def get_files(authorization: Optional[str] = Header(None)):
+    """Get user files from Manta API"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    manta_token = authorization.replace("Bearer ", "")
+    
+    try:
+        response = requests.get(
+            f"{MANTA_BASE_URL}/filemanagement/list",
+            headers={"Authorization": f"Bearer {manta_token}"}
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/qr-code")
+async def generate_qr_code(request: QRCodeRequest):
+    """Generate QR code for file sharing"""
+    try:
+        # Get file info from Manta
+        response = requests.get(
+            f"{MANTA_BASE_URL}/filemanagement/{request.file_id}",
+            headers={"Authorization": f"Bearer {request.manta_token}"}
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        file_data = response.json()
+        
+        # Create share URL (you can customize this)
+        share_url = f"https://mantadrive.com/share/{request.file_id}"
+        
         # Generate QR code
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(data.data)
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(share_url)
         qr.make(fit=True)
-
-        # Create the QR code image
-        img = qr.make_image(fill='black', back_color='white')
-
-        # Convert the image to base64 string
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-        # Return the base64-encoded image in the response
-        return JSONResponse(content={"image_data": img_base64}, status_code=200)
-
+        
+        # Create QR code image
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64
+        img_buffer = io.BytesIO()
+        qr_img.save(img_buffer, format='PNG')
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+        
+        return {
+            "qr_code": f"data:image/png;base64,{img_base64}",
+            "share_url": share_url,
+            "file_name": file_data.get("filename", "Unknown")
+        }
+        
     except Exception as e:
-        logger.error(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint for generating QR code from images
-@app.post("/generate-qr-image/")
-async def generate_qr_image(file: UploadFile):
+@app.post("/share-link")
+async def create_share_link(request: ShareLinkRequest):
+    """Create shareable link for file"""
     try:
-        # Step 1: Upload the image to S3
-        file_url = await upload_image_to_s3(file)
-
-        # Step 2: Generate a QR code with the S3 file URL
-        qr = qrcode.QRCode(
-            version=None,  # Auto-adjust based on content size
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
+        # Post to Manta API to create share link
+        response = requests.post(
+            f"{MANTA_BASE_URL}/filesharing/create-link",
+            json={"file_id": request.file_id},
+            headers={"Authorization": f"Bearer {request.manta_token}"}
         )
-        qr.add_data(file_url)  # Use S3 URL instead of raw image data
-        qr.make(fit=True)
-
-        # Step 3: Create a QR code image
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Step 4: Convert the QR code image to base64
-        buffered = io.BytesIO()
-        img.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-        # Step 5: Return the base64-encoded QR code image
-        return JSONResponse(content={"image_data": img_base64}, status_code=200)
-
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            # Fallback: create local share link
+            share_url = f"https://mantadrive.com/share/{request.file_id}"
+            return {"share_url": share_url}
+            
     except Exception as e:
-        logger.error(f"Error generating QR code: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=str(e))
 
-async def upload_image_to_s3(file: UploadFile) -> str:
-    """Upload an image to S3 and return the file URL."""
+@app.post("/ai/organize")
+async def organize_files(authorization: Optional[str] = Header(None)):
+    """Organize files using AI"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    manta_token = authorization.replace("Bearer ", "")
+    
     try:
-        # Upload the file to S3
-        s3.upload_fileobj(
-            file.file,
-            bucket_name,
-            file.filename,
-            ExtraArgs={"ContentType": file.content_type}
+        response = requests.post(
+            f"{MANTA_BASE_URL}/aiprocessing/organize-files",
+            headers={"Authorization": f"Bearer {manta_token}"}
         )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        # Generate the public S3 URL
-        file_url = f"https://{bucket_name}.s3.amazonaws.com/{file.filename}"
-        return file_url
-
-    except NoCredentialsError:
-        raise HTTPException(status_code=500, detail="AWS credentials not found.")
-    except ClientError as e:
-        logger.error(f"S3 upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload to S3")
-
+@app.get("/")
+async def root():
+    return {"message": "MantaDrive Backend API", "status": "running"}
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
