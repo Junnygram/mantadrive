@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -54,15 +55,30 @@ export default function Dashboard() {
 
   const fetchuserauth = async () => {
     try {
-      const { backendApi } = await import('../../lib/mantaApi');
-      const userauth = await backendApi.getUserProfile(
-        localStorage.getItem('token')
-      );
-      setUser(userauth);
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Decode JWT token to get username
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUser({ username: payload.username });
+      }
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Error decoding token:', error);
     }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showUserDropdown && !event.target.closest('.user-dropdown')) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserDropdown]);
 
   const fetchFiles = async () => {
     try {
@@ -157,10 +173,10 @@ export default function Dashboard() {
       toast.error('Failed to generate QR code');
     }
   };
-  
+
   const deleteFile = async (fileId) => {
     if (!confirm('Are you sure you want to delete this file?')) return;
-    
+
     try {
       const { backendApi } = await import('../../lib/mantaApi');
       await backendApi.deleteFile(fileId, localStorage.getItem('token'));
@@ -171,12 +187,15 @@ export default function Dashboard() {
       toast.error('Failed to delete file');
     }
   };
-  
+
   const downloadFile = async (fileId, fileName) => {
     try {
       const { backendApi } = await import('../../lib/mantaApi');
-      const response = await backendApi.downloadFile(fileId, localStorage.getItem('token'));
-      
+      const response = await backendApi.downloadFile(
+        fileId,
+        localStorage.getItem('token')
+      );
+
       // Create a download link
       const url = window.URL.createObjectURL(new Blob([response]));
       const link = document.createElement('a');
@@ -253,8 +272,16 @@ export default function Dashboard() {
 
             <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 w-full md:w-auto">
               <label className="btn-primary cursor-pointer flex items-center">
-                <Upload className="h-4 w-4 mr-2" />
+                {/* <Upload className="h-4 w-4 mr-2" />
                 Upload
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                /> */}
+
+                <Upload className="h-4 w-4 " />
+
                 <input
                   type="file"
                   className="hidden"
@@ -293,10 +320,55 @@ export default function Dashboard() {
                     <List className="h-4 w-4" />
                   </button>
                 </div>
+
+                <div className="relative user-dropdown">
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-purple-50"
+                  >
+                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-purple-300">
+                      <img
+                        src="/image/avatar.png"
+                        alt="User Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span className="text-sm text-gray-700">
+                      {user?.username?.slice(0, 4) || 'User'}
+                    </span>
+                  </button>
+                  {showUserDropdown && (
+                    <div className="absolute right-0 mt-2 w-30 bg-white rounded-lg shadow-lg border z-10">
+                      <button
+                        onClick={() => {
+                          router.push('/dashboard/profile');
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-purple-50 flex items-center space-x-2"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>Profile</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          logout();
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center space-x-2 text-red-600"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="relative group">
-                <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-purple-50">
+              {/* <div className="relative user-dropdown">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-purple-50"
+                >
                   <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-purple-300">
                     <img
                       src="/image/avatar.png"
@@ -304,22 +376,29 @@ export default function Dashboard() {
                       className="w-full h-full object-cover"
                     />
                   </div>
-                  <span className="text-sm text-gray-700">{user?.name}</span>
+                  <span className="text-sm text-gray-700">
+                    {user?.username || 'User'}
+                  </span>
                 </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                  <button className="w-full text-left px-4 py-2 hover:bg-purple-50 flex items-center space-x-2">
-                    <Settings className="h-4 w-4" />
-                    <span>Settings</span>
-                  </button>
-                  <button
-                    onClick={logout}
-                    className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center space-x-2 text-red-600"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              </div>
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10">
+                    <button className="w-full text-left px-4 py-2 hover:bg-purple-50 flex items-center space-x-2">
+                      <Settings className="h-4 w-4" />
+                      <span>Settings</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center space-x-2 text-red-600"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div> */}
             </div>
           </div>
         </div>
@@ -331,33 +410,35 @@ export default function Dashboard() {
         {isUploading && (
           <div className="mb-6 bg-white rounded-lg shadow-sm p-4 border">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-medium text-gray-900">Uploading file...</span>
+              <span className="font-medium text-gray-900">
+                Uploading file...
+              </span>
               <span className="text-sm text-gray-600">{uploadProgress}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+              <div
+                className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
           </div>
         )}
-        
+
         {uploadSuccess && (
           <div className="mb-6 bg-green-50 text-green-800 rounded-lg shadow-sm p-4 border border-green-200 flex items-center justify-between">
             <div className="flex items-center">
               <CheckCircle className="h-5 w-5 mr-2" />
               <span>File uploaded successfully!</span>
             </div>
-            <button 
-              onClick={() => setUploadSuccess(false)} 
+            <button
+              onClick={() => setUploadSuccess(false)}
               className="text-sm text-green-700 hover:text-green-900"
             >
               Dismiss
             </button>
           </div>
         )}
-        
+
         {filteredFiles.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-lg shadow-sm p-8">
             <Cloud className="h-16 w-16 text-purple-300 mx-auto mb-4" />
@@ -466,32 +547,43 @@ export default function Dashboard() {
           </div>
         )}
       </main>
-      
+
       {/* File Preview Modal */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b p-4">
-              <h3 className="font-medium text-lg text-gray-900">{previewFile.name}</h3>
-              <button 
+              <h3 className="font-medium text-lg text-gray-900">
+                {previewFile.name}
+              </h3>
+              <button
                 onClick={() => setPreviewFile(null)}
                 className="p-2 hover:bg-gray-100 rounded-full"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-auto p-4">
               {previewFile.type?.startsWith('image/') ? (
-                <img 
-                  src={`/api/files/${previewFile.id}/preview`} 
+                <img
+                  src={`/api/files/${previewFile.id}/preview`}
                   alt={previewFile.name}
                   className="max-w-full h-auto mx-auto"
                 />
               ) : previewFile.type?.includes('pdf') ? (
-                <iframe 
+                <iframe
                   src={`/api/files/${previewFile.id}/preview`}
                   className="w-full h-full min-h-[500px]"
                   title={previewFile.name}
@@ -501,9 +593,13 @@ export default function Dashboard() {
                   <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                     {getFileIcon(previewFile.type || '')}
                   </div>
-                  <p className="text-gray-500">Preview not available for this file type</p>
-                  <button 
-                    onClick={() => downloadFile(previewFile.id, previewFile.name)}
+                  <p className="text-gray-500">
+                    Preview not available for this file type
+                  </p>
+                  <button
+                    onClick={() =>
+                      downloadFile(previewFile.id, previewFile.name)
+                    }
                     className="mt-4 btn-primary inline-flex items-center"
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -512,21 +608,24 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            
+
             <div className="border-t p-4 flex justify-between items-center bg-gray-50">
               <div className="text-sm text-gray-500">
-                {(previewFile.size / 1024 / 1024).toFixed(2)} MB · {new Date(previewFile.createdAt || Date.now()).toLocaleDateString()}
+                {(previewFile.size / 1024 / 1024).toFixed(2)} MB ·{' '}
+                {new Date(
+                  previewFile.createdAt || Date.now()
+                ).toLocaleDateString()}
               </div>
-              
+
               <div className="flex space-x-2">
-                <button 
+                <button
                   onClick={() => generateShareLink(previewFile.id)}
                   className="btn-secondary inline-flex items-center"
                 >
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     downloadFile(previewFile.id, previewFile.name);
                     setPreviewFile(null);

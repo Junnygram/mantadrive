@@ -1,6 +1,6 @@
 // Backend API integration (connects to our FastAPI backend which uses MantaHQ)
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
 
 class BackendAPI {
   constructor() {
@@ -53,12 +53,20 @@ class BackendAPI {
     });
   }
 
+  async updateUserProfile(profileData, token) {
+    return this.request('/user-reset', {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(profileData),
+    });
+  }
+
   // File Management
   async uploadFile(file, token) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const url = `${this.baseURL}/files/upload`;
+    const url = `${this.baseURL}/upload`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -76,7 +84,11 @@ class BackendAPI {
   }
 
   async getFiles(token) {
-    return this.request('/files', {
+    // Get username from token
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const username = payload.username;
+
+    return this.request(`/files?username=${username}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   }
@@ -87,19 +99,27 @@ class BackendAPI {
       headers: { Authorization: `Bearer ${token}` },
     });
   }
-  
+
   async downloadFile(fileId, token) {
-    const url = `${this.baseURL}/files/${fileId}/download`;
+    const url = `${this.baseURL}/download/${fileId}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Download failed');
     }
-    
-    return response.blob();
+
+    const data = await response.json();
+
+    // Download from S3 presigned URL
+    const fileResponse = await fetch(data.download_url);
+    if (!fileResponse.ok) {
+      throw new Error('Failed to download file from storage');
+    }
+
+    return fileResponse.blob();
   }
 
   // Sharing & QR Codes

@@ -15,6 +15,8 @@ from typing import Optional
 import logging
 import jwt
 from jwt.exceptions import PyJWTError
+import uuid
+from datetime import datetime
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -45,13 +47,13 @@ try:
     # Test S3 connection and bucket existence
     try:
         s3_client.head_bucket(Bucket=S3_BUCKET)
-        logger.info(f"S3 bucket '{S3_BUCKET}' is accessible")
+        logger.info(f"S3 bucket {S3_BUCKET} is accessible")
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == '404':
-            logger.error(f"S3 bucket '{S3_BUCKET}' does not exist")
+            logger.error(f"S3 bucket {S3_BUCKET} does not exist")
         elif error_code == '403':
-            logger.error(f"Access denied to S3 bucket '{S3_BUCKET}'")
+            logger.error(f"Access denied to S3 bucket {S3_BUCKET}")
         else:
             logger.error(f"Error accessing S3 bucket: {e}")
     
@@ -79,6 +81,12 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+class UserResetRequest(BaseModel):
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    currentPassword: str
+    newPassword: Optional[str] = None
 
 def create_user_folders_from_token(token: str) -> None:
     """Extract user info from token and create S3 folders"""
@@ -237,63 +245,125 @@ async def upload_file(
     file: UploadFile = File(...),
     authorization: Optional[str] = Header(None)
 ):
-    """Upload file to Manta API as base64 string"""
+    """Upload file to S3 then register metadata with MantaHQ"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header required")
     
+    if not s3_client:
+        raise HTTPException(status_code=500, detail="S3 client not available")
+    
     manta_token = authorization.replace("Bearer ", "")
+    logger.info(f"Upload request received for file: {file.filename}")
     
     try:
-        # Read file and convert to base64
-        file_content = await file.read()
-        file_base64 = base64.b64encode(file_content).decode()
+        # Get user info from token
+        decoded = jwt.decode(manta_token, options={"verify_signature": False})
+        username = decoded.get('username')
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token")
         
-        # Post to Manta API
-        response = requests.post(
-            f"{MANTA_BASE_URL}/filemanagement/upload",
-            json={
-                "filename": file.filename,
-                "content": file_base64,
-                "content_type": file.content_type,
-                "size": len(file_content)
-            },
-            headers={"Authorization": f"Bearer {manta_token}"},
-            timeout=30  # Longer timeout for file uploads
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        # Generate S3 key
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else ''
+        s3_key = f"user-{username}/{file.filename}"
+        
+        # Upload to S3
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=s3_key,
+            Body=file_content,
+            ContentType=file.content_type or 'application/octet-stream'
         )
         
-        # Log response for debugging
-        logger.info(f"Upload API response status: {response.status_code}")
+        # Generate S3 URL
+        s3_url = f"https://{S3_BUCKET}.s3.{os.getenv('AWS_REGION', 'us-east-1')}.amazonaws.com/{s3_key}"
         
-        # Return the exact response from MantaHQ API
-        return response.json()
+        # Register with MantaHQ (metadata only)
+        manta_response = requests.post(
+            f"{MANTA_BASE_URL}/filemanagement",
+            json={
+                "s3_url": s3_url,
+                "s3_key": s3_key,
+                "size": file_size,
+                "content_type": file.content_type or 'application/octet-stream',
+                "created_at": str(int(datetime.utcnow().timestamp() * 1000))
+            },
+            headers={"Authorization": f"Bearer {manta_token}"},
+            timeout=30
+        )
+        
+        logger.info(f"Upload API response status: {manta_response.status_code}")
+        
+        if manta_response.status_code != 200:
+            # If MantaHQ fails, clean up S3
+            try:
+                s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
+            except Exception as cleanup_error:
+                logger.error(f"Failed to cleanup S3 after MantaHQ error: {cleanup_error}")
+            raise HTTPException(status_code=manta_response.status_code, detail="Failed to register file")
+        
+        return manta_response.json()
             
+    except jwt.PyJWTError as e:
+        logger.error(f"JWT decode error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except ClientError as e:
+        logger.error(f"S3 error during upload: {e}")
+        raise HTTPException(status_code=500, detail=f"Storage error: {str(e)}")
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error during file upload: {e}")
         raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error during file upload: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_msg = f"Unexpected error during file upload: {str(e)}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/files")
-async def get_files(authorization: Optional[str] = Header(None)):
-    """Get user files from Manta API"""
+async def get_files(username: str, authorization: Optional[str] = Header(None)):
+    """Get files for specific username from MantaHQ"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header required")
     
     manta_token = authorization.replace("Bearer ", "")
     
     try:
+        # Get all files from MantaHQ
         response = requests.get(
-            f"{MANTA_BASE_URL}/filemanagement/list",
+            f"{MANTA_BASE_URL}/filemanagement",
             headers={"Authorization": f"Bearer {manta_token}"},
             timeout=10
         )
         
-        # Log response for debugging
         logger.info(f"Files API response status: {response.status_code}")
         
-        # Return the exact response from MantaHQ API
-        return response.json()
+        if response.status_code != 200:
+            return []
+        
+        all_files = response.json()
+        
+        # Filter files by user folder
+        user_prefix = f"user-{username}/"
+        user_files = []
+        
+        for file in all_files:
+            if file.get('s3_key', '').startswith(user_prefix):
+                filename = file['s3_key'].replace(user_prefix, '')
+                user_files.append({
+                    'id': file.get('id'),
+                    'name': filename,
+                    'size': file.get('size', 0),
+                    'type': file.get('content_type', 'application/octet-stream'),
+                    'createdAt': file.get('created_at'),
+                    's3_key': file.get('s3_key'),
+                    's3_url': file.get('s3_url')
+                })
+        
+        return user_files
             
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error getting files: {e}")
@@ -374,24 +444,50 @@ async def generate_qr_code(request: QRCodeRequest):
 
 @app.get("/download/{file_id}")
 async def download_file(file_id: str, authorization: Optional[str] = Header(None)):
-    """Download a file from Manta API"""
+    """Download a file via S3 URL from MantaHQ metadata"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header required")
     
     manta_token = authorization.replace("Bearer ", "")
     
     try:
+        # Get all files and find the specific one
         response = requests.get(
-            f"{MANTA_BASE_URL}/filemanagement/download/{file_id}",
+            f"{MANTA_BASE_URL}/filemanagement",
             headers={"Authorization": f"Bearer {manta_token}"},
-            timeout=30  # Longer timeout for file downloads
+            timeout=10
         )
         
-        # Log response for debugging
-        logger.info(f"Download API response status: {response.status_code}")
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Failed to get files")
         
-        # Return the exact response from MantaHQ API
-        return response.json()
+        all_files = response.json()
+        file_data = None
+        
+        # Find file by ID
+        for file in all_files:
+            if file.get('id') == file_id:
+                file_data = file
+                break
+        
+        if not file_data:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        s3_key = file_data.get('s3_key')
+        
+        if not s3_key:
+            raise HTTPException(status_code=404, detail="File location not found")
+        
+        # Generate presigned URL for direct S3 download
+        if s3_client:
+            download_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                ExpiresIn=3600  # 1 hour
+            )
+            return {"download_url": download_url, "filename": file_data.get('filename')}
+        else:
+            raise HTTPException(status_code=500, detail="Storage service unavailable")
             
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error downloading file: {e}")
@@ -449,6 +545,49 @@ async def health_check():
         "s3_bucket": S3_BUCKET,
         "bucket_status": bucket_status
     }
+
+@app.put("/user-reset")
+async def user_reset(request: UserResetRequest, authorization: Optional[str] = Header(None)):
+    """Update user profile information"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    manta_token = authorization.replace("Bearer ", "")
+    
+    try:
+        # Prepare the request payload
+        payload = {
+            "currentPassword": request.currentPassword
+        }
+        
+        # Add optional fields if provided
+        if request.firstName:
+            payload["firstName"] = request.firstName
+        if request.lastName:
+            payload["lastName"] = request.lastName
+        if request.newPassword:
+            payload["newPassword"] = request.newPassword
+        
+        # Call MantaHQ API
+        response = requests.put(
+            f"{MANTA_BASE_URL}/userauthflow/user-reset",
+            json=payload,
+            headers={"Authorization": f"Bearer {manta_token}"},
+            timeout=10
+        )
+        
+        # Log response for debugging
+        logger.info(f"User reset API response status: {response.status_code}")
+        
+        # Return the exact response from MantaHQ API
+        return response.json()
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error during user reset: {e}")
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error during user reset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
