@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import Image from 'next/image';
 
 export default function Login() {
   const [credentials, setCredentials] = useState({
@@ -58,9 +59,20 @@ export default function Login() {
   return (
     <>
       <Toaster position="top-right" />
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-          <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-24 h-24 mb-4 relative overflow-hidden rounded-full border-4 border-purple-500 shadow-lg">
+              <Image 
+                src="/image/avatar.png" 
+                alt="User Avatar" 
+                width={96} 
+                height={96} 
+                className="object-cover"
+              />
+            </div>
+            <h2 className="text-2xl font-bold text-center text-purple-800">Welcome Back</h2>
+          </div>
 
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -75,7 +87,7 @@ export default function Login() {
               placeholder="Username"
               value={credentials.username}
               onChange={handleInputChange}
-              className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
             <div className="relative mb-4">
               <input
@@ -84,7 +96,7 @@ export default function Login() {
                 placeholder="Password"
                 value={credentials.password}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 pr-12"
               />
               <button
                 type="button"
@@ -101,7 +113,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50"
+              className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition duration-200 disabled:opacity-50"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
@@ -109,7 +121,7 @@ export default function Login() {
 
           <p className="text-center mt-4 text-gray-600">
             Don't have an account?{' '}
-            <a href="/signup" className="text-blue-600 hover:underline">
+            <a href="/signup" className="text-purple-600 hover:underline">
               Sign up
             </a>
           </p>

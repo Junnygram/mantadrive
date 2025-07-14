@@ -87,6 +87,20 @@ class BackendAPI {
       headers: { Authorization: `Bearer ${token}` },
     });
   }
+  
+  async downloadFile(fileId, token) {
+    const url = `${this.baseURL}/files/${fileId}/download`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Download failed');
+    }
+    
+    return response.blob();
+  }
 
   // Sharing & QR Codes
   async generateShareLink(fileId, options, token) {
