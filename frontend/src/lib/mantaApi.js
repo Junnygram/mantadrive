@@ -65,6 +65,8 @@ class BackendAPI {
   async uploadFile(file, token) {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('file_size', file.size);
+    formData.append('file_type', file.type || 'application/octet-stream');
 
     const url = `${this.baseURL}/upload`;
     const response = await fetch(url, {

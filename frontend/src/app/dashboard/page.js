@@ -98,7 +98,19 @@ export default function Dashboard() {
         localStorage.getItem('token')
       );
       // Ensure filesData is an array before setting it
-      setFiles(Array.isArray(filesData) ? filesData : []);
+      const processedFiles = Array.isArray(filesData) ? filesData : [];
+
+      // Make sure each file has a unique id
+      const filesWithIds = processedFiles.map((file, index) => {
+        // If file doesn't have an id, use s3_key or create one
+        if (!file.id) {
+          return { ...file, id: file.s3_key || `file-${index}` };
+        }
+        return file;
+      });
+
+      setFiles(filesWithIds);
+      console.log('Fetched files:', filesWithIds);
     } catch (error) {
       console.error('Error fetching files:', error);
       setFiles([]); // Set to empty array on error
@@ -134,7 +146,17 @@ export default function Dashboard() {
       if (!token) {
         throw new Error('No authentication token found. Please log in again.');
       }
-      await backendApi.uploadFile(file, token);
+
+      // Log file details before upload
+      console.log('Uploading file:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+
+      // Upload the file
+      const uploadResponse = await backendApi.uploadFile(file, token);
+      console.log('Upload response:', uploadResponse);
 
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -303,34 +325,99 @@ export default function Dashboard() {
 
   const downloadFile = async (fileId, fileName) => {
     try {
-      const { backendApi } = await import('../../lib/mantaApi');
-      const response = await backendApi.downloadFile(
-        fileId,
-        localStorage.getItem('token')
-      );
+      // Find the file in our files array to get the S3 URL
+      const fileToDownload = files.find((file) => file.id === fileId);
 
-      // Create a download link
-      const url = window.URL.createObjectURL(new Blob([response]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      if (fileToDownload && fileToDownload.s3_url) {
+        // Direct download from S3
+        const link = document.createElement('a');
+        link.href = fileToDownload.s3_url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        toast.success('Download started');
+      } else {
+        // Fallback to API if S3 URL is not available
+        const { backendApi } = await import('../../lib/mantaApi');
+        const response = await backendApi.downloadFile(
+          fileId,
+          localStorage.getItem('token')
+        );
+
+        // Create a download link
+        const url = window.URL.createObjectURL(new Blob([response]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
     } catch (error) {
       console.error('Error downloading file:', error);
       toast.error('Failed to download file');
     }
   };
 
-  const getFileIcon = (fileType) => {
-    if (fileType.startsWith('image/')) return <Image className="h-5 w-5" />;
-    if (fileType.startsWith('video/')) return <Video className="h-5 w-5" />;
-    if (fileType.startsWith('audio/')) return <Music className="h-5 w-5" />;
-    if (fileType.includes('pdf') || fileType.includes('document'))
-      return <FileText className="h-5 w-5" />;
-    if (fileType.includes('zip') || fileType.includes('rar'))
-      return <Archive className="h-5 w-5" />;
+  const getFileIcon = (fileType, fileName) => {
+    // Check by file type if available
+    if (fileType) {
+      if (fileType.startsWith('image/')) return <Image className="h-5 w-5" />;
+      if (fileType.startsWith('video/')) return <Video className="h-5 w-5" />;
+      if (fileType.startsWith('audio/')) return <Music className="h-5 w-5" />;
+      if (fileType.includes('pdf') || fileType.includes('document'))
+        return <FileText className="h-5 w-5" />;
+      if (fileType.includes('zip') || fileType.includes('rar'))
+        return <Archive className="h-5 w-5" />;
+    }
+
+    // Fallback to checking file extension if name is available
+    if (fileName) {
+      const lowerName = fileName.toLowerCase();
+      if (
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.webp')
+      ) {
+        return <Image className="h-5 w-5" />;
+      }
+      if (
+        lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.avi') ||
+        lowerName.endsWith('.mov') ||
+        lowerName.endsWith('.webm')
+      ) {
+        return <Video className="h-5 w-5" />;
+      }
+      if (
+        lowerName.endsWith('.mp3') ||
+        lowerName.endsWith('.wav') ||
+        lowerName.endsWith('.ogg')
+      ) {
+        return <Music className="h-5 w-5" />;
+      }
+      if (
+        lowerName.endsWith('.pdf') ||
+        lowerName.endsWith('.doc') ||
+        lowerName.endsWith('.docx') ||
+        lowerName.endsWith('.txt')
+      ) {
+        return <FileText className="h-5 w-5" />;
+      }
+      if (
+        lowerName.endsWith('.zip') ||
+        lowerName.endsWith('.rar') ||
+        lowerName.endsWith('.tar') ||
+        lowerName.endsWith('.gz')
+      ) {
+        return <Archive className="h-5 w-5" />;
+      }
+    }
+
+    // Default icon
     return <File className="h-5 w-5" />;
   };
 
@@ -385,8 +472,8 @@ export default function Dashboard() {
 
             <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 w-full md:w-auto">
               <label className="btn-primary cursor-pointer flex items-center">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload
+                <Upload className="h-4 w-4 " />
+                {/* Upload */}
                 <input
                   type="file"
                   className="hidden"
@@ -585,7 +672,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center space-x-2 flex-1 min-w-0">
                   <div className="text-purple-600 flex-shrink-0">
-                    {getFileIcon(file.type)}
+                    {getFileIcon(file.type || file.content_type, file.name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3
@@ -594,9 +681,9 @@ export default function Dashboard() {
                     >
                       {file.name}
                     </h3>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(1)}MB
-                    </p>
+                    {/* <p className="text-xs text-gray-500">
+                      {file.size ? (file.size / 1024 / 1024).toFixed(1) + 'MB' : 'Unknown size'}
+                    </p> */}
                   </div>
                 </div>
 
@@ -610,14 +697,16 @@ export default function Dashboard() {
                       title="More options"
                     >
                       <svg
-                        className="h-3 w-3"
+                        className="h-4 w-4"
                         fill="currentColor"
                         viewBox="0 0 20 20"
+                        strokeWidth="1.5"
+                        stroke="currentColor"
                       >
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                       </svg>
                     </button>
-                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-75 z-10">
                       <button
                         onClick={() => openShareModal(file)}
                         className="w-full text-left px-3 py-1.5 hover:bg-purple-50 flex items-center space-x-2 text-purple-600 text-xs"
@@ -640,8 +729,9 @@ export default function Dashboard() {
                         <span>Download</span>
                       </button>
                       <button
-                        onClick={() => deleteFile(file.id)}
-                        className="w-full text-left px-3 py-1.5 hover:bg-red-50 flex items-center space-x-2 text-red-600 text-xs"
+                        onClick={(e) => e.preventDefault()}
+                        className="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center space-x-2 text-gray-400 text-xs cursor-not-allowed opacity-50"
+                        disabled
                       >
                         <Trash2 className="h-3 w-3" />
                         <span>Delete</span>
@@ -657,8 +747,14 @@ export default function Dashboard() {
 
       {/* File Preview Modal */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setPreviewFile(null)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-medium text-lg text-gray-900">
                 {previewFile.name}
@@ -683,22 +779,32 @@ export default function Dashboard() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-              {previewFile.type?.startsWith('image/') ? (
+              {previewFile.type?.startsWith('image/') ||
+              previewFile.content_type?.startsWith('image/') ||
+              previewFile.name?.toLowerCase().endsWith('.jpg') ||
+              previewFile.name?.toLowerCase().endsWith('.jpeg') ||
+              previewFile.name?.toLowerCase().endsWith('.png') ||
+              previewFile.name?.toLowerCase().endsWith('.gif') ? (
                 <img
-                  src={`/api/files/${previewFile.id}/preview`}
+                  src={previewFile.s3_url}
                   alt={previewFile.name}
                   className="max-w-full h-auto mx-auto"
                 />
-              ) : previewFile.type?.includes('pdf') ? (
+              ) : previewFile.type?.includes('pdf') ||
+                previewFile.content_type?.includes('pdf') ||
+                previewFile.name?.toLowerCase().endsWith('.pdf') ? (
                 <iframe
-                  src={`/api/files/${previewFile.id}/preview`}
+                  src={previewFile.s3_url}
                   className="w-full h-full min-h-[500px]"
                   title={previewFile.name}
                 />
               ) : (
                 <div className="text-center py-12">
                   <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    {getFileIcon(previewFile.type || '')}
+                    {getFileIcon(
+                      previewFile.type || previewFile.content_type || '',
+                      previewFile.name
+                    )}
                   </div>
                   <p className="text-gray-500">
                     Preview not available for this file type
@@ -718,9 +824,11 @@ export default function Dashboard() {
 
             <div className="border-t p-4 flex justify-between items-center bg-gray-50">
               <div className="text-sm text-gray-500">
-                {(previewFile.size / 1024 / 1024).toFixed(2)} MB ·{' '}
+                {previewFile.size
+                  ? (previewFile.size / 1024 / 1024).toFixed(2) + ' MB · '
+                  : ''}
                 {new Date(
-                  previewFile.createdAt || Date.now()
+                  previewFile.createdAt || previewFile.created_at || Date.now()
                 ).toLocaleDateString()}
               </div>
 
@@ -757,8 +865,14 @@ export default function Dashboard() {
 
       {/* API Test Results Modal */}
       {apiTestResults && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setApiTestResults(null)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setApiTestResults(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-medium text-lg text-gray-900">
                 API Test Results
