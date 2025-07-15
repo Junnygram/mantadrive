@@ -34,14 +34,14 @@ class BackendAPI {
 
   // Authentication
   async register(userauth) {
-    return this.request('/auth/register', {
+    return this.request('/signup', {
       method: 'POST',
       body: JSON.stringify(userauth),
     });
   }
 
   async login(credentials) {
-    return this.request('/auth/login', {
+    return this.request('/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -123,24 +123,90 @@ class BackendAPI {
   }
 
   // Sharing & QR Codes
-  async generateShareLink(fileId, options, token) {
-    return this.request(`/files/${fileId}/share`, {
+  async generateShareLink(fileId, token) {
+    return this.request('/share', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify(options),
+      body: JSON.stringify({ file_id: fileId, manta_token: token }),
     });
   }
 
   async generateQRCode(fileId, token) {
-    return this.request(`/files/${fileId}/qr`, {
+    return this.request('/qrcode', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ file_id: fileId, manta_token: token }),
     });
+  }
+
+  async generateProtectedShareLink(fileId, options, token) {
+    return this.request('/share/protected', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        file_id: fileId,
+        protection: options.protection,
+        access_key: options.accessKey,
+        expires_in: options.expiresIn || '7d'
+      }),
+    });
+  }
+
+  // Anonymous Sharing (Ghost Sharing)
+  async createAnonymousShare(fileId, options, token) {
+    try {
+      const response = await this.request('/share/anonymous', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          file_id: fileId,
+          access_key: options.accessKey,
+          password: options.password,
+          expires_in: options.expiresIn || 24,
+          max_downloads: options.maxDownloads
+        }),
+      });
+      
+      console.log('Anonymous share response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error in createAnonymousShare:', error);
+      throw error;
+    }
+  }
+
+  async accessAnonymousShare(accessId, accessKey, password) {
+    const params = new URLSearchParams();
+    if (accessKey) params.append('access_key', accessKey);
+    if (password) params.append('password', password);
+    
+    const url = `/s/${accessId}${params.toString() ? '?' + params.toString() : ''}`;
+    
+    try {
+      const response = await fetch(`${this.baseURL}${url}`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Access denied');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Anonymous Share Access Error:', error);
+      throw error;
+    }
   }
 
   // AI Features
   async organizeFiles(token) {
     return this.request('/ai/organize', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async getSmartInsights(token) {
+    return this.request('/ai/smart-insights', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });

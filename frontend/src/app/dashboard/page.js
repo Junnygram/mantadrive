@@ -25,8 +25,15 @@ import {
   Archive,
   Brain,
   CheckCircle,
+  Bug,
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import ShareModal from '../../components/ShareModal';
+import {
+  testDirectMantaHQ,
+  testBackendAPI,
+  testPostToBackend,
+} from '../../lib/apiTest';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
@@ -38,8 +45,12 @@ export default function Dashboard() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [fileToShare, setFileToShare] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [apiTestResults, setApiTestResults] = useState(null);
+  const [isApiTesting, setIsApiTesting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -118,7 +129,12 @@ export default function Dashboard() {
         });
       }, 300);
 
-      await backendApi.uploadFile(file, localStorage.getItem('token'));
+      const token = localStorage.getItem('token');
+      console.log('Upload token:', token ? 'Present' : 'Missing');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+      await backendApi.uploadFile(file, token);
 
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -132,46 +148,143 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error uploading file:', error);
       setIsUploading(false);
-      toast.error('Failed to upload file');
+
+      // Show specific error message
+      if (error.message.includes('Authorization')) {
+        toast.error('Please log in again to upload files');
+      } else if (error.message.includes('S3')) {
+        toast.error('Storage service unavailable. Please try again later.');
+      } else if (error.message.includes('No authentication token')) {
+        toast.error('Please log in again to upload files');
+      } else {
+        toast.error(`Upload failed: ${error.message}`);
+      }
+
+      setUploadSuccess(false);
+      setUploadProgress(0);
     }
   };
 
   const generateShareLink = async (fileId) => {
     try {
       const { backendApi } = await import('../../lib/mantaApi');
-      const { shareUrl } = await backendApi.generateShareLink(
+
+      // Generate a random access key for quick share
+      const generateRandomKey = () => {
+        const characters =
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+          result += characters.charAt(
+            Math.floor(Math.random() * characters.length)
+          );
+        }
+        return result;
+      };
+
+      const accessKey = generateRandomKey();
+
+      // Use anonymous share for quick sharing
+      const response = await backendApi.createAnonymousShare(
         fileId,
         {
-          protection: 'none',
-          expiresIn: '7d',
+          accessKey: accessKey,
+          expiresIn: 24, // 24 hours
+          maxDownloads: 3, // Limit to 3 downloads
         },
         localStorage.getItem('token')
       );
 
-      navigator.clipboard.writeText(shareUrl);
-      alert('Share link copied to clipboard!');
+      const shareUrl = response.share_url || response.shareUrl;
+
+      // Copy both the link and access key to clipboard
+      const shareText = `Link: ${shareUrl}\nAccess Key: ${accessKey}`;
+      navigator.clipboard.writeText(shareText);
+
+      toast.success('Share link and access key copied to clipboard!');
     } catch (error) {
       console.error('Error generating share link:', error);
+      toast.error('Failed to generate share link');
     }
   };
 
   const generateQRCode = async (fileId) => {
     try {
       const { backendApi } = await import('../../lib/mantaApi');
+
+      // First create an anonymous share
+      const generateRandomKey = () => {
+        const characters =
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+          result += characters.charAt(
+            Math.floor(Math.random() * characters.length)
+          );
+        }
+        return result;
+      };
+
+      const accessKey = generateRandomKey();
+
+      // Create anonymous share
+      const shareResponse = await backendApi.createAnonymousShare(
+        fileId,
+        {
+          accessKey: accessKey,
+          expiresIn: 24, // 24 hours
+          maxDownloads: 5, // Limit to 5 downloads
+        },
+        localStorage.getItem('token')
+      );
+
+      const shareUrl = shareResponse.share_url || shareResponse.shareUrl;
+
+      // Then generate QR code
       const { qrCode } = await backendApi.generateQRCode(
         fileId,
         localStorage.getItem('token')
       );
 
-      // Open QR code in new window or modal
+      // Open QR code in new window with access key information
       const newWindow = window.open();
-      newWindow.document.write(
-        `<img src="${qrCode}" alt="QR Code" style="max-width: 100%; height: auto;" />`
-      );
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>MantaDrive QR Code</title>
+            <style>
+              body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; }
+              .container { max-width: 500px; margin: 0 auto; }
+              .qr-code { margin-bottom: 20px; }
+              .access-key { background: #f3f4f6; padding: 10px; border-radius: 5px; margin-top: 20px; }
+              .key { font-family: monospace; font-weight: bold; font-size: 18px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h2>MantaDrive QR Code</h2>
+              <div class="qr-code">
+                <img src="${qrCode}" alt="QR Code" style="max-width: 100%; height: auto;" />
+              </div>
+              <p>Scan this QR code to access the shared file</p>
+              <div class="access-key">
+                <p>Access Key:</p>
+                <p class="key">${accessKey}</p>
+                <p><small>Share this key separately with the recipient</small></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
     } catch (error) {
       console.error('Error generating QR code:', error);
       toast.error('Failed to generate QR code');
     }
+  };
+
+  const openShareModal = (file) => {
+    setFileToShare(file);
+    setShareModalOpen(true);
   };
 
   const deleteFile = async (fileId) => {
@@ -272,16 +385,8 @@ export default function Dashboard() {
 
             <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 w-full md:w-auto">
               <label className="btn-primary cursor-pointer flex items-center">
-                {/* <Upload className="h-4 w-4 mr-2" />
+                <Upload className="h-4 w-4 mr-2" />
                 Upload
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                /> */}
-
-                <Upload className="h-4 w-4 " />
-
                 <input
                   type="file"
                   className="hidden"
@@ -292,7 +397,8 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => router.push('/dashboard/ai')}
-                  className="btn-secondary flex items-center space-x-2"
+                  className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled
                 >
                   <Brain className="h-4 w-4" />
                   <span>AI Features</span>
@@ -469,78 +575,79 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div
-            className={viewMode === 'grid' ? 'responsive-grid' : 'space-y-2'}
-          >
+          /* Mobile-friendly slim card view for filtered files */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {filteredFiles.map((file) => (
               <div
                 key={file.id}
-                className={`bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow ${
-                  viewMode === 'grid'
-                    ? 'p-4'
-                    : 'p-3 flex items-center justify-between'
-                }`}
+                className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-2 flex items-center justify-between"
                 onClick={() => setPreviewFile(file)}
               >
-                <div
-                  className={`flex items-center ${
-                    viewMode === 'grid' ? 'flex-col text-center' : 'space-x-3'
-                  }`}
-                >
-                  <div
-                    className={`text-purple-600 ${
-                      viewMode === 'grid' ? 'mb-3' : ''
-                    }`}
-                  >
+                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                  <div className="text-purple-600 flex-shrink-0">
                     {getFileIcon(file.type)}
                   </div>
-                  <div className={viewMode === 'grid' ? 'w-full' : 'flex-1'}>
+                  <div className="flex-1 min-w-0">
                     <h3
-                      className="font-medium text-gray-900 truncate"
+                      className="font-medium text-gray-900 truncate text-xs"
                       title={file.name}
                     >
                       {file.name}
                     </h3>
-                    <p className="text-sm text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    <p className="text-xs text-gray-500">
+                      {(file.size / 1024 / 1024).toFixed(1)}MB
                     </p>
                   </div>
                 </div>
 
                 <div
-                  className={`flex flex-wrap items-center gap-1 ${
-                    viewMode === 'grid' ? 'mt-4 justify-center' : ''
-                  }`}
+                  className="flex-shrink-0"
                   onClick={(e) => e.stopPropagation()} // Prevent triggering file preview
                 >
-                  <button
-                    onClick={() => generateShareLink(file.id)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded"
-                    title="Share"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => generateQRCode(file.id)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded"
-                    title="Generate QR Code"
-                  >
-                    <QrCode className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => downloadFile(file.id, file.name)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded"
-                    title="Download"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => deleteFile(file.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="relative group">
+                    <button
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded"
+                      title="More options"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                      </svg>
+                    </button>
+                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                      <button
+                        onClick={() => openShareModal(file)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-purple-50 flex items-center space-x-2 text-purple-600 text-xs"
+                      >
+                        <Share2 className="h-3 w-3" />
+                        <span>Share with Key</span>
+                      </button>
+                      <button
+                        onClick={() => generateShareLink(file.id)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-blue-50 flex items-center space-x-2 text-blue-600 text-xs"
+                      >
+                        <Share2 className="h-3 w-3" />
+                        <span>Quick Share</span>
+                      </button>
+                      <button
+                        onClick={() => downloadFile(file.id, file.name)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center space-x-2 text-xs"
+                      >
+                        <Download className="h-3 w-3" />
+                        <span>Download</span>
+                      </button>
+                      <button
+                        onClick={() => deleteFile(file.id)}
+                        className="w-full text-left px-3 py-1.5 hover:bg-red-50 flex items-center space-x-2 text-red-600 text-xs"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -550,8 +657,8 @@ export default function Dashboard() {
 
       {/* File Preview Modal */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setPreviewFile(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-medium text-lg text-gray-900">
                 {previewFile.name}
@@ -636,6 +743,83 @@ export default function Dashboard() {
                   Download
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      <ShareModal
+        file={fileToShare}
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+      />
+
+      {/* API Test Results Modal */}
+      {apiTestResults && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setApiTestResults(null)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="font-medium text-lg text-gray-900">
+                API Test Results
+              </h3>
+              <button
+                onClick={() => setApiTestResults(null)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <div className="space-y-6">
+                <div>
+                  <h4 className="font-medium text-green-700 mb-2">
+                    Direct MantaHQ API Call:
+                  </h4>
+                  <pre className="bg-gray-50 p-3 rounded overflow-auto text-sm">
+                    {JSON.stringify(apiTestResults.direct, null, 2)}
+                  </pre>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-blue-700 mb-2">
+                    Backend API Call:
+                  </h4>
+                  <pre className="bg-gray-50 p-3 rounded overflow-auto text-sm">
+                    {JSON.stringify(apiTestResults.backend, null, 2)}
+                  </pre>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-purple-700 mb-2">
+                    POST Test:
+                  </h4>
+                  <pre className="bg-gray-50 p-3 rounded overflow-auto text-sm">
+                    {JSON.stringify(apiTestResults.post, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t p-4 flex justify-end">
+              <button
+                onClick={() => setApiTestResults(null)}
+                className="btn-primary"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
