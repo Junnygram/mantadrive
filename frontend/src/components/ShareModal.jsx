@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Share2, Copy, Check, Lock, X, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -10,23 +10,30 @@ export default function ShareModal({ file, isOpen, onClose }) {
   const [copied, setCopied] = useState(false);
   const [useCustomKey, setUseCustomKey] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const modalRef = useRef(null);
 
   if (!isOpen || !file) return null;
 
   const generateRandomKey = () => {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const characters =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < 8; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
+      result += characters.charAt(
+        Math.floor(Math.random() * characters.length)
+      );
     }
     setGeneratedKey(result);
   };
 
   const handleGenerateShare = async () => {
-    const accessKey = useCustomKey ? shareKey : generatedKey || (() => {
-      generateRandomKey();
-      return generatedKey;
-    })();
+    const accessKey = useCustomKey
+      ? shareKey
+      : generatedKey ||
+        (() => {
+          generateRandomKey();
+          return generatedKey;
+        })();
 
     if (!accessKey) {
       toast.error('Please provide an access key');
@@ -37,20 +44,26 @@ export default function ShareModal({ file, isOpen, onClose }) {
 
     try {
       const { backendApi } = await import('../lib/mantaApi');
-      
+
       // Use the anonymous share endpoint instead of protected share
       const response = await backendApi.createAnonymousShare(
         file.id,
         {
           accessKey: accessKey,
           expiresIn: 24, // 24 hours
-          maxDownloads: 5 // Limit to 5 downloads
+          maxDownloads: 5, // Limit to 5 downloads
         },
         localStorage.getItem('token')
       );
-      
+
       setShareLink(response.share_url || response.shareUrl);
-      toast.success('Anonymous share link generated!');
+
+      // Check if the key is "12345" for special message
+      if (accessKey === '12345') {
+        toast.success('Copied for sharing!');
+      } else {
+        toast.success('Not copied for sharing');
+      }
     } catch (error) {
       console.error('Error generating anonymous share:', error);
       toast.error('Failed to generate share link');
@@ -86,12 +99,21 @@ export default function ShareModal({ file, isOpen, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+        ref={modalRef}
+      >
         <div className="flex items-center justify-between border-b p-4">
           <div className="flex items-center space-x-2">
             <Share2 className="h-5 w-5 text-purple-600" />
-            <h3 className="font-medium text-lg text-gray-900">Anonymous Share</h3>
+            <h3 className="font-medium text-lg text-gray-900">
+              Anonymous Share
+            </h3>
           </div>
           <button
             onClick={handleClose}
@@ -108,7 +130,9 @@ export default function ShareModal({ file, isOpen, onClose }) {
                 <Share2 className="h-4 w-4 text-purple-600" />
               </div>
               <div>
-                <p className="font-medium text-gray-900 truncate">{file.name}</p>
+                <p className="font-medium text-gray-900 truncate">
+                  {file.name}
+                </p>
                 <p className="text-sm text-gray-500">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
@@ -133,10 +157,10 @@ export default function ShareModal({ file, isOpen, onClose }) {
                       }
                     }}
                   >
-                    {useCustomKey ? "Use generated key" : "Use custom key"}
+                    {useCustomKey ? 'Use generated key' : 'Use custom key'}
                   </button>
                 </div>
-                
+
                 {useCustomKey ? (
                   <input
                     type="text"
@@ -168,10 +192,11 @@ export default function ShareModal({ file, isOpen, onClose }) {
               </div>
 
               <button
+                disabled
                 type="button"
                 className="btn-primary w-full flex items-center justify-center"
                 onClick={handleGenerateShare}
-                disabled={isGenerating}
+                // disabled={isGenerating}
               >
                 {isGenerating ? (
                   <>
@@ -181,7 +206,7 @@ export default function ShareModal({ file, isOpen, onClose }) {
                 ) : (
                   <>
                     <Lock className="h-4 w-4 mr-2" />
-                    Generate Anonymous Link
+                    Send
                   </>
                 )}
               </button>
@@ -190,9 +215,13 @@ export default function ShareModal({ file, isOpen, onClose }) {
             <>
               <div className="bg-green-50 text-green-800 p-3 rounded-lg mb-4 flex items-center">
                 <Check className="h-5 w-5 mr-2 text-green-600" />
-                <span className="text-sm">Anonymous share link generated!</span>
+                <span className="text-sm">
+                  {(useCustomKey ? shareKey : generatedKey) === '12345'
+                    ? 'Copied for sharing!'
+                    : 'Not copied for sharing'}
+                </span>
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Share Link
@@ -209,26 +238,39 @@ export default function ShareModal({ file, isOpen, onClose }) {
                     className="px-3 py-2 bg-purple-600 text-white rounded-r-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     onClick={() => copyToClipboard(shareLink)}
                   >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
-              
+
               <div className="mb-4">
                 <div className="flex items-center text-amber-700 bg-amber-50 p-3 rounded-lg">
                   <Lock className="h-4 w-4 mr-2 flex-shrink-0" />
                   <div className="text-sm">
-                    <p className="font-medium">Access Key: <span className="font-mono">{useCustomKey ? shareKey : generatedKey}</span></p>
-                    <p className="text-xs mt-1">Share this key with the recipient separately for security</p>
+                    <p className="font-medium">
+                      Access Key:{' '}
+                      <span className="font-mono">
+                        {useCustomKey ? shareKey : generatedKey}
+                      </span>
+                    </p>
+                    <p className="text-xs mt-1">
+                      Share this key with the recipient separately for security
+                    </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   type="button"
                   className="btn-secondary flex-1"
-                  onClick={() => copyToClipboard(useCustomKey ? shareKey : generatedKey)}
+                  onClick={() =>
+                    copyToClipboard(useCustomKey ? shareKey : generatedKey)
+                  }
                 >
                   <Copy className="h-4 w-4 mr-2" />
                   Copy Key
@@ -238,7 +280,9 @@ export default function ShareModal({ file, isOpen, onClose }) {
                   className="btn-primary flex-1"
                   onClick={handleClose}
                 >
-                  Done
+                  {(useCustomKey ? shareKey : generatedKey) === '12345'
+                    ? 'Share'
+                    : 'Done'}
                 </button>
               </div>
             </>

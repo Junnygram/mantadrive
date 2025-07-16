@@ -25,6 +25,19 @@
     @apply bg-white rounded-lg shadow-sm border p-6;
   }
   
+  /* Dropdown menu styles */
+  .dropdown-menu {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+  
+  .dropdown-visible .dropdown-menu,
+  .dropdown-menu.dropdown-visible {
+    opacity: 1;
+    visibility: visible;
+  }
+  
   /* Responsive utilities */
   .responsive-container {
     @apply w-full px-4 sm:px-6 md:px-8 mx-auto max-w-7xl;

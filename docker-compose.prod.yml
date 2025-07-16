@@ -1,10 +1,12 @@
-version: '3'
+version: '3.8'
 
 services:
   backend:
     build:
       context: ./backend
-    restart: always
+      dockerfile: Dockerfile
+    image: mantadrive-backend:latest
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
@@ -13,23 +15,37 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
-    volumes:
-      - ./backend:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/test-endpoint"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
 
   frontend:
     build:
       context: ./frontend
-    restart: always
+      dockerfile: Dockerfile
+    image: mantadrive-frontend:latest
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
+      backend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  default:
+    driver: bridge

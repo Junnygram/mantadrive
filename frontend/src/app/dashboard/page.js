@@ -80,8 +80,16 @@ export default function Dashboard() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Handle user dropdown
       if (showUserDropdown && !event.target.closest('.user-dropdown')) {
         setShowUserDropdown(false);
+      }
+
+      // Handle file action dropdowns
+      if (!event.target.closest('.file-dropdown')) {
+        document.querySelectorAll('.dropdown-visible').forEach((el) => {
+          el.classList.remove('dropdown-visible');
+        });
       }
     };
 
@@ -230,98 +238,98 @@ export default function Dashboard() {
     }
   };
 
-  const generateQRCode = async (fileId) => {
-    try {
-      const { backendApi } = await import('../../lib/mantaApi');
+  // const generateQRCode = async (fileId) => {
+  //   try {
+  //     const { backendApi } = await import('../../lib/mantaApi');
 
-      // First create an anonymous share
-      const generateRandomKey = () => {
-        const characters =
-          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-        for (let i = 0; i < 6; i++) {
-          result += characters.charAt(
-            Math.floor(Math.random() * characters.length)
-          );
-        }
-        return result;
-      };
+  //     // First create an anonymous share
+  //     const generateRandomKey = () => {
+  //       const characters =
+  //         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  //       let result = '';
+  //       for (let i = 0; i < 6; i++) {
+  //         result += characters.charAt(
+  //           Math.floor(Math.random() * characters.length)
+  //         );
+  //       }
+  //       return result;
+  //     };
 
-      const accessKey = generateRandomKey();
+  //     const accessKey = generateRandomKey();
 
-      // Create anonymous share
-      const shareResponse = await backendApi.createAnonymousShare(
-        fileId,
-        {
-          accessKey: accessKey,
-          expiresIn: 24, // 24 hours
-          maxDownloads: 5, // Limit to 5 downloads
-        },
-        localStorage.getItem('token')
-      );
+  //     // Create anonymous share
+  //     const shareResponse = await backendApi.createAnonymousShare(
+  //       fileId,
+  //       {
+  //         accessKey: accessKey,
+  //         expiresIn: 24, // 24 hours
+  //         maxDownloads: 5, // Limit to 5 downloads
+  //       },
+  //       localStorage.getItem('token')
+  //     );
 
-      const shareUrl = shareResponse.share_url || shareResponse.shareUrl;
+  //     const shareUrl = shareResponse.share_url || shareResponse.shareUrl;
 
-      // Then generate QR code
-      const { qrCode } = await backendApi.generateQRCode(
-        fileId,
-        localStorage.getItem('token')
-      );
+  //     // Then generate QR code
+  //     const { qrCode } = await backendApi.generateQRCode(
+  //       fileId,
+  //       localStorage.getItem('token')
+  //     );
 
-      // Open QR code in new window with access key information
-      const newWindow = window.open();
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>MantaDrive QR Code</title>
-            <style>
-              body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; }
-              .container { max-width: 500px; margin: 0 auto; }
-              .qr-code { margin-bottom: 20px; }
-              .access-key { background: #f3f4f6; padding: 10px; border-radius: 5px; margin-top: 20px; }
-              .key { font-family: monospace; font-weight: bold; font-size: 18px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h2>MantaDrive QR Code</h2>
-              <div class="qr-code">
-                <img src="${qrCode}" alt="QR Code" style="max-width: 100%; height: auto;" />
-              </div>
-              <p>Scan this QR code to access the shared file</p>
-              <div class="access-key">
-                <p>Access Key:</p>
-                <p class="key">${accessKey}</p>
-                <p><small>Share this key separately with the recipient</small></p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      toast.error('Failed to generate QR code');
-    }
-  };
+  //     // Open QR code in new window with access key information
+  //     const newWindow = window.open();
+  //     newWindow.document.write(`
+  //       <html>
+  //         <head>
+  //           <title>MantaDrive QR Code</title>
+  //           <style>
+  //             body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; }
+  //             .container { max-width: 500px; margin: 0 auto; }
+  //             .qr-code { margin-bottom: 20px; }
+  //             .access-key { background: #f3f4f6; padding: 10px; border-radius: 5px; margin-top: 20px; }
+  //             .key { font-family: monospace; font-weight: bold; font-size: 18px; }
+  //           </style>
+  //         </head>
+  //         <body>
+  //           <div class="container">
+  //             <h2>MantaDrive QR Code</h2>
+  //             <div class="qr-code">
+  //               <img src="${qrCode}" alt="QR Code" style="max-width: 100%; height: auto;" />
+  //             </div>
+  //             <p>Scan this QR code to access the shared file</p>
+  //             <div class="access-key">
+  //               <p>Access Key:</p>
+  //               <p class="key">${accessKey}</p>
+  //               <p><small>Share this key separately with the recipient</small></p>
+  //             </div>
+  //           </div>
+  //         </body>
+  //       </html>
+  //     `);
+  //   } catch (error) {
+  //     console.error('Error generating QR code:', error);
+  //     toast.error('Failed to generate QR code');
+  //   }
+  // };
 
   const openShareModal = (file) => {
     setFileToShare(file);
     setShareModalOpen(true);
   };
 
-  const deleteFile = async (fileId) => {
-    if (!confirm('Are you sure you want to delete this file?')) return;
+  // const deleteFile = async (fileId) => {
+  //   if (!confirm('Are you sure you want to delete this file?')) return;
 
-    try {
-      const { backendApi } = await import('../../lib/mantaApi');
-      await backendApi.deleteFile(fileId, localStorage.getItem('token'));
-      toast.success('File deleted successfully');
-      fetchFiles(); // Refresh the file list
-    } catch (error) {
-      console.error('Error deleting file:', error);
-      toast.error('Failed to delete file');
-    }
-  };
+  //   try {
+  //     const { backendApi } = await import('../../lib/mantaApi');
+  //     await backendApi.deleteFile(fileId, localStorage.getItem('token'));
+  //     toast.success('File deleted successfully');
+  //     fetchFiles(); // Refresh the file list
+  //   } catch (error) {
+  //     console.error('Error deleting file:', error);
+  //     toast.error('Failed to delete file');
+  //   }
+  // };
 
   const downloadFile = async (fileId, fileName) => {
     try {
@@ -691,10 +699,26 @@ export default function Dashboard() {
                   className="flex-shrink-0"
                   onClick={(e) => e.stopPropagation()} // Prevent triggering file preview
                 >
-                  <div className="relative group">
+                  <div className="relative file-dropdown">
                     <button
-                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded"
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded dropdown-toggle"
                       title="More options"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Toggle dropdown visibility by adding/removing class
+                        const dropdown = e.currentTarget.nextElementSibling;
+                        if (dropdown.classList.contains('dropdown-visible')) {
+                          dropdown.classList.remove('dropdown-visible');
+                        } else {
+                          // Close all other dropdowns first
+                          document
+                            .querySelectorAll('.dropdown-visible')
+                            .forEach((el) => {
+                              el.classList.remove('dropdown-visible');
+                            });
+                          dropdown.classList.add('dropdown-visible');
+                        }
+                      }}
                     >
                       <svg
                         className="h-4 w-4"
@@ -706,23 +730,45 @@ export default function Dashboard() {
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                       </svg>
                     </button>
-                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-75 z-10">
+                    <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border dropdown-menu z-10">
                       <button
-                        onClick={() => openShareModal(file)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openShareModal(file);
+                          // Close dropdown after clicking
+                          e.currentTarget.parentElement.classList.remove(
+                            'dropdown-visible'
+                          );
+                        }}
                         className="w-full text-left px-3 py-1.5 hover:bg-purple-50 flex items-center space-x-2 text-purple-600 text-xs"
                       >
                         <Share2 className="h-3 w-3" />
                         <span>Share with Key</span>
                       </button>
                       <button
-                        onClick={() => generateShareLink(file.id)}
+                        disabled
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateShareLink(file.id);
+                          // Close dropdown after clicking
+                          e.currentTarget.parentElement.classList.remove(
+                            'dropdown-visible'
+                          );
+                        }}
                         className="w-full text-left px-3 py-1.5 hover:bg-blue-50 flex items-center space-x-2 text-blue-600 text-xs"
                       >
                         <Share2 className="h-3 w-3" />
-                        <span>Quick Share</span>
+                        <span>Share with Phrase</span>
                       </button>
                       <button
-                        onClick={() => downloadFile(file.id, file.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadFile(file.id, file.name);
+                          // Close dropdown after clicking
+                          e.currentTarget.parentElement.classList.remove(
+                            'dropdown-visible'
+                          );
+                        }}
                         className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center space-x-2 text-xs"
                       >
                         <Download className="h-3 w-3" />
@@ -836,16 +882,19 @@ export default function Dashboard() {
                 <button
                   onClick={() => generateShareLink(previewFile.id)}
                   className="btn-secondary inline-flex items-center"
+                  disabled
                 >
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </button>
+
                 <button
                   onClick={() => {
                     downloadFile(previewFile.id, previewFile.name);
                     setPreviewFile(null);
                   }}
                   className="btn-primary inline-flex items-center"
+                  disabled
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Download
