@@ -1,19 +1,21 @@
+# frontend/Dockerfile
 FROM node:18-alpine
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy over the package.json content and package-lock.json file to the container
-COPY package*.json ./
-
-# Install dependencies
+COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copy the rest of the application over to the container
 COPY . .
 
-# Expose the port on which the app runs 
+# Build with ESLint checks disabled
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build -- --no-lint
+
 EXPOSE 3000
 
-# Start the application in development mode
-CMD ["npm", "run", "dev"] 
+CMD ["npm", , "run","start"]
+
+
+#

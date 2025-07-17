@@ -45,7 +45,7 @@ export default function MultiStepSignup() {
     try {
       console.log('Signup endpoint:', process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT);
       console.log('Sending signup data:', formData);
-      
+
       const response = await fetch(process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,36 +61,43 @@ export default function MultiStepSignup() {
         // Store token if provided in response
         if (data.token) {
           localStorage.setItem('token', data.token);
-          
+
           // Call backend to create S3 folders
           try {
             console.log('Creating S3 folders for user...');
             console.log('Backend URL:', process.env.NEXT_PUBLIC_BACKEND_URL);
             console.log('Token:', data.token.substring(0, 20) + '...');
-            
-            const folderResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/create-user-folders`, {
-              method: 'POST',
-              headers: { 
-                'Authorization': `Bearer ${data.token}`,
-                'Content-Type': 'application/json'
+
+            const folderResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_BACKEND_URL}/create-user-folders`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${data.token}`,
+                  'Content-Type': 'application/json',
+                },
               }
-            });
-            
+            );
+
             console.log('Folder creation status:', folderResponse.status);
-            
+
             if (folderResponse.ok) {
               const folderData = await folderResponse.json();
               console.log('S3 folder creation response:', folderData);
             } else {
               const errorText = await folderResponse.text();
-              console.error('Failed to create S3 folders:', folderResponse.status, errorText);
+              console.error(
+                'Failed to create S3 folders:',
+                folderResponse.status,
+                errorText
+              );
             }
           } catch (folderError) {
             console.error('Error creating S3 folders:', folderError);
             // Don't block signup process if folder creation fails
           }
         }
-        
+
         router.push('/login');
         setFormData({
           firstName: '',
@@ -117,9 +124,9 @@ export default function MultiStepSignup() {
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
             <div className="w-24 h-24 mb-4 relative overflow-hidden rounded-full border-4 border-purple-500 shadow-lg">
-              <img 
-                src="/image/avatar.png" 
-                alt="User Avatar" 
+              <img
+                src="/image/avatar.png"
+                alt="User Avatar"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -212,7 +219,7 @@ export default function MultiStepSignup() {
                   )}
                 </button>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex gap-4">
                 <button
                   onClick={() => setStep(1)}
                   className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-400 transition duration-200"
