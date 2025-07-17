@@ -45,7 +45,7 @@ export default function MultiStepSignup() {
     try {
       console.log('Signup endpoint:', process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT);
       console.log('Sending signup data:', formData);
-      
+
       const response = await fetch(process.env.NEXT_PUBLIC_SIGNUP_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,36 +61,43 @@ export default function MultiStepSignup() {
         // Store token if provided in response
         if (data.token) {
           localStorage.setItem('token', data.token);
-          
+
           // Call backend to create S3 folders
           try {
             console.log('Creating S3 folders for user...');
             console.log('Backend URL:', process.env.NEXT_PUBLIC_BACKEND_URL);
             console.log('Token:', data.token.substring(0, 20) + '...');
-            
-            const folderResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/create-user-folders`, {
-              method: 'POST',
-              headers: { 
-                'Authorization': `Bearer ${data.token}`,
-                'Content-Type': 'application/json'
+
+            const folderResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_BACKEND_URL}/create-user-folders`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${data.token}`,
+                  'Content-Type': 'application/json',
+                },
               }
-            });
-            
+            );
+
             console.log('Folder creation status:', folderResponse.status);
-            
+
             if (folderResponse.ok) {
               const folderData = await folderResponse.json();
               console.log('S3 folder creation response:', folderData);
             } else {
               const errorText = await folderResponse.text();
-              console.error('Failed to create S3 folders:', folderResponse.status, errorText);
+              console.error(
+                'Failed to create S3 folders:',
+                folderResponse.status,
+                errorText
+              );
             }
           } catch (folderError) {
             console.error('Error creating S3 folders:', folderError);
             // Don't block signup process if folder creation fails
           }
         }
-        
+
         router.push('/login');
         setFormData({
           firstName: '',
@@ -113,16 +120,25 @@ export default function MultiStepSignup() {
   return (
     <>
       <Toaster position="top-right" />
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100">
         <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-          <h2 className="text-2xl font-bold text-center mb-6">
-            Create Account
-          </h2>
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-24 h-24 mb-4 relative overflow-hidden rounded-full border-4 border-purple-500 shadow-lg">
+              <img
+                src="/image/avatar.png"
+                alt="User Avatar"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <h2 className="text-2xl font-bold text-center text-purple-800">
+              Create Account
+            </h2>
+          </div>
 
           <div className="flex justify-center mb-6">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+                step >= 1 ? 'bg-purple-600 text-white' : 'bg-gray-200'
               }`}
             >
               1
@@ -130,7 +146,7 @@ export default function MultiStepSignup() {
             <div className="w-16 h-0.5 bg-gray-200 mt-4"></div>
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+                step >= 2 ? 'bg-purple-600 text-white' : 'bg-gray-200'
               }`}
             >
               2
@@ -152,7 +168,7 @@ export default function MultiStepSignup() {
                 placeholder="First Name"
                 value={formData.firstName}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <input
                 type="text"
@@ -160,11 +176,11 @@ export default function MultiStepSignup() {
                 placeholder="Last Name"
                 value={formData.lastName}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <button
                 onClick={handleNextStep}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200"
+                className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition duration-200"
               >
                 Next
               </button>
@@ -180,7 +196,7 @@ export default function MultiStepSignup() {
                 placeholder="Username"
                 value={formData.username}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <div className="relative mb-4">
                 <input
@@ -189,7 +205,7 @@ export default function MultiStepSignup() {
                   placeholder="Password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 pr-12"
                 />
                 <button
                   type="button"
@@ -203,7 +219,7 @@ export default function MultiStepSignup() {
                   )}
                 </button>
               </div>
-              <div className="flex space-x-4">
+              <div className="flex gap-4">
                 <button
                   onClick={() => setStep(1)}
                   className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-400 transition duration-200"
@@ -213,7 +229,7 @@ export default function MultiStepSignup() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50"
+                  className="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition duration-200 disabled:opacity-50"
                 >
                   {loading ? 'Creating...' : 'Create Account'}
                 </button>

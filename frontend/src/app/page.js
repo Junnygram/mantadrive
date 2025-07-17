@@ -42,26 +42,26 @@ export default function GenZLandingPage() {
     {
       icon: Cloud,
       title: 'Smart File Storage',
-      desc: 'AI-powered organization that keeps your files perfectly sorted 🌙',
+      desc: 'Secure cloud storage with easy organization and access from anywhere 🌙',
       color: 'from-purple-400 to-pink-400',
     },
     {
       icon: Shield,
       title: 'Advanced Security',
-      desc: 'Military-grade encryption with AI threat detection 🛡️',
-      color: 'from-blue-400 to-cyan-400',
+      desc: 'End-to-end encryption and secure authentication to protect your data 🛡️',
+      color: 'from-purple-400 to-pink-400',
     },
     {
       icon: Zap,
-      title: 'Lightning Processing',
-      desc: 'Instant file conversion, background removal & text extraction ⚡',
-      color: 'from-yellow-400 to-orange-400',
+      title: 'Fast Sharing',
+      desc: 'Share files instantly with secure links and QR codes for easy access ⚡',
+      color: 'from-purple-400 to-pink-400',
     },
     {
       icon: Users,
       title: 'Team Collaboration',
-      desc: 'Share files with QR codes and secure links instantly 👥',
-      color: 'from-green-400 to-emerald-400',
+      desc: 'Work together seamlessly with shared folders and real-time updates 👥',
+      color: 'from-purple-400 to-pink-400',
     },
   ];
 
@@ -207,8 +207,8 @@ export default function GenZLandingPage() {
             variants={fadeInUp}
             className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto font-light"
           >
-            Smart cloud storage with AI-powered file organization, instant
-            processing, and military-grade security. Your files deserve better.
+            Secure cloud storage with easy file sharing, team collaboration, and
+            powerful organization tools. The modern solution for all your file storage needs.
           </motion.p>
 
           <motion.div
