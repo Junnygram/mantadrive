@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: mantadrive-backend
+    env: docker
+    plan: free
+    repo: https://github.com/Junnygram/mantadrive
+    rootDir: backend
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_BACKEND_URL
+        value: https://mantadrive-backend.onrender.com
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://mantadrive-frontend.onrender.com
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: S3_BUCKET_NAME
+        value: mantadrive-users
+      - key: NEXT_PUBLIC_SIGNUP_ENDPOINT
+        value: https://api.mantahq.com/api/workflow/olaleye/mantadrive/userauthflow/signup
+      - key: NEXT_PUBLIC_LOGIN_ENDPOINT
+        value: https://api.mantahq.com/api/workflow/olaleye/mantadrive/userauthflow/login
+
+  - type: web
+    name: mantadrive-frontend
+    env: docker
+    plan: free
+    repo: https://github.com/Junnygram/mantadrive
+    rootDir: frontend
+    dockerContext: .
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://mantadrive-backend.onrender.com
