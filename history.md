@@ -49,3 +49,6 @@ ubuntu@ip-172-31-85-211:~/mantadrive$ history
 
 curl -fsSL https://get.docker.com | sudo bash
 sudo usermod -aG docker $USER
+
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml up --build -d
