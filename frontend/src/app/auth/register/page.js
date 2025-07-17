@@ -9,7 +9,7 @@ export default function Register() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,13 +28,13 @@ export default function Register() {
     }
 
     try {
-      const { backendApi } = await import('../../lib/mantaApi');
+      const { backendApi } = await import('../../../lib/mantaApi');
       const data = await backendApi.register({
         name: formData.name,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
-      
+
       localStorage.setItem('token', data.token);
       router.push('/dashboard');
     } catch (error) {
@@ -55,7 +55,9 @@ export default function Register() {
             <h1 className="text-2xl font-bold text-gray-900">
               Join <span className="text-blue-600">MantaDrive</span>
             </h1>
-            <p className="text-gray-600 mt-2">Create your secure cloud storage account</p>
+            <p className="text-gray-600 mt-2">
+              Create your secure cloud storage account
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -71,7 +73,9 @@ export default function Register() {
                   className="input-field pl-10"
                   placeholder="Enter your full name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -88,7 +92,9 @@ export default function Register() {
                   className="input-field pl-10"
                   placeholder="Enter your email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -105,7 +111,9 @@ export default function Register() {
                   className="input-field pl-10 pr-10"
                   placeholder="Create a password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                 />
                 <button
                   type="button"
@@ -133,7 +141,12 @@ export default function Register() {
                   className="input-field pl-10"
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
                 />
               </div>
             </div>
@@ -156,7 +169,10 @@ export default function Register() {
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Already have an account?{' '}
-              <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
+              <Link
+                href="/auth/login"
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
                 Sign in
               </Link>
             </p>

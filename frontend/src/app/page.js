@@ -1,5 +1,5 @@
 'use client';
-import GenZLandingPage from '@/components/GenzLandingPage';
+import GenZLandingPage from '../components/GenzyLoading';
 import React from 'react';
 
 const page = () => {

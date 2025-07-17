@@ -29,11 +29,6 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import ShareModal from '../../components/ShareModal';
-import {
-  testDirectMantaHQ,
-  testBackendAPI,
-  testPostToBackend,
-} from '../../lib/apiTest';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
@@ -76,7 +71,6 @@ export default function Dashboard() {
       console.error('Error decoding token:', error);
     }
   };
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -791,6 +785,7 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* File Preview Modal */}
       {/* File Preview Modal */}
       {previewFile && (
         <div
