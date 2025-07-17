@@ -1,21 +1,24 @@
-# frontend/Dockerfile
 FROM node:18-alpine
 
 WORKDIR /app
+
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_LOGIN_ENDPOINT
+ARG NEXT_PUBLIC_SIGNUP_ENDPOINT
+
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_LOGIN_ENDPOINT=$NEXT_PUBLIC_LOGIN_ENDPOINT
+ENV NEXT_PUBLIC_SIGNUP_ENDPOINT=$NEXT_PUBLIC_SIGNUP_ENDPOINT
 
 COPY package.json package-lock.json* ./
 RUN npm install
 
 COPY . .
 
-# Build with ESLint checks disabled
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN npm run build -- --no-lint
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run","start"]
-
-
-#
+CMD ["npm", "run", "start"]
