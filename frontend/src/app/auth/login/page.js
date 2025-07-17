@@ -17,9 +17,9 @@ export default function Login() {
     setError('');
 
     try {
-      const { backendApi } = await import('../../lib/mantaApi');
+      const { backendApi } = await import('../../../lib/mantaApi');
       const data = await backendApi.login(formData);
-      
+
       localStorage.setItem('token', data.token);
       router.push('/dashboard');
     } catch (error) {
@@ -40,7 +40,9 @@ export default function Login() {
             <h1 className="text-2xl font-bold text-gray-900">
               Welcome to <span className="text-blue-600">MantaDrive</span>
             </h1>
-            <p className="text-gray-600 mt-2">Sign in to access your secure cloud storage</p>
+            <p className="text-gray-600 mt-2">
+              Sign in to access your secure cloud storage
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -56,7 +58,9 @@ export default function Login() {
                   className="input-field pl-10"
                   placeholder="Enter your email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -73,7 +77,9 @@ export default function Login() {
                   className="input-field pl-10 pr-10"
                   placeholder="Enter your password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                 />
                 <button
                   type="button"
@@ -107,7 +113,10 @@ export default function Login() {
           <div className="mt-6 text-center">
             <p className="text-gray-600">
               Don't have an account?{' '}
-              <Link href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+              <Link
+                href="/auth/register"
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
                 Sign up
               </Link>
             </p>

@@ -29,11 +29,6 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import ShareModal from '../../components/ShareModal';
-import {
-  testDirectMantaHQ,
-  testBackendAPI,
-  testPostToBackend,
-} from '../../lib/apiTest';
 
 export default function Dashboard() {
   const [files, setFiles] = useState([]);
@@ -76,12 +71,19 @@ export default function Dashboard() {
       console.error('Error decoding token:', error);
     }
   };
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Handle user dropdown
       if (showUserDropdown && !event.target.closest('.user-dropdown')) {
         setShowUserDropdown(false);
+      }
+
+      // Handle file action dropdowns
+      if (!event.target.closest('.file-dropdown')) {
+        document.querySelectorAll('.dropdown-visible').forEach((el) => {
+          el.classList.remove('dropdown-visible');
+        });
       }
     };
 
@@ -746,6 +748,7 @@ export default function Dashboard() {
       </main>
 
       {/* File Preview Modal */}
+      {/* File Preview Modal */}
       {previewFile && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -836,16 +839,19 @@ export default function Dashboard() {
                 <button
                   onClick={() => generateShareLink(previewFile.id)}
                   className="btn-secondary inline-flex items-center"
+                  disabled
                 >
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </button>
+
                 <button
                   onClick={() => {
                     downloadFile(previewFile.id, previewFile.name);
                     setPreviewFile(null);
                   }}
                   className="btn-primary inline-flex items-center"
+                  disabled
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Download
