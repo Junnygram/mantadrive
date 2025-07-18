@@ -27,14 +27,12 @@ app = FastAPI(title="MantaDrive Backend")
 
 app.add_middleware(
     CORSMiddleware,
-      allow_origins=[
-        "https://mantadrive.onrender.com",  
-    ],
-    allow_origins=["*"],
+    allow_origins=["https://mantadrive.onrender.com"],  # Or ["*"] for dev only
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 MANTA_BASE_URL = os.getenv('MANTA_BASE_URL', "https://api.mantahq.com/api/workflow/olaleye/mantadrive")
